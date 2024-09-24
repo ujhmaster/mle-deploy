@@ -15,4 +15,13 @@ def read_root():
 # временно имитируем предсказание со случайной генерацией score
 @app.get("/api/churn/{user_id}")
 def get_prediction_for_item(user_id: str):
-    return {"user_id": user_id, "score": random.random()} 
+    return {"user_id": user_id, "score": random.random()}
+
+@app.get("/service-status")
+def health_check():
+    return {"status": "ok"}
+
+@app.get("/api/credit/{client_id}")
+def is_credit_approved(client_id : int):
+    log = 1 if random.random() > 0.8 else 0
+    return {"approved": log}
