@@ -10,11 +10,12 @@ class FastApiHandler:
 
         # типы параметров запроса для проверки
         self.param_types = {
-            "user_id": str,
+            "user_id": int,
             "model_params": dict
         }
+        self.err = []
 
-        self.model_path = "models/catboost_churn_model.bin"
+        self.model_path = "../models/catboost_churn_model.bin"
         self.load_churn_model(model_path=self.model_path)
         
         # необходимые параметры для предсказаний модели оттока
@@ -23,6 +24,7 @@ class FastApiHandler:
                 'MonthlyCharges', 'TotalCharges', 'MultipleLines', 'InternetService', 'OnlineSecurity', 
                 'OnlineBackup', 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies', 'days', 'services'
             ]
+        
     def load_churn_model(self, model_path: str):
         """Загружаем обученную модель оттока.
             Args:
@@ -31,8 +33,10 @@ class FastApiHandler:
         try:
             self.model = CatBoostClassifier()
             self.model.load_model(model_path)
+            print('model loaded')
+            print("model fetures list:", self.model.feature_names_)
         except Exception as e:
-            print(f"Failed to load model: {e}")
+            self.err.append(f"Failed to load model: {e}")
 
     def churn_predict(self, model_params: dict) -> float:
         """Предсказываем вероятность оттока.
@@ -55,12 +59,15 @@ class FastApiHandler:
                 bool: True - если есть нужные параметры, False - иначе
         """
         if "user_id" not in query_params or "model_params" not in query_params:
+            self.err.append('unset user_id or model_params dict keys')
             return False
         
         if not isinstance(query_params["user_id"], self.param_types["user_id"]):
+            self.err.append('bad type of user_id')
             return False
         
         if not isinstance(query_params["model_params"], self.param_types["model_params"]):
+            self.err.append('bad type of model_params')
             return False
         
         return True
@@ -77,7 +84,9 @@ class FastApiHandler:
         
         if set(model_params.keys()) == set(self.required_model_params):
             return True
-        
+        else:
+            self.err.append('incorrect model param set')
+
         return False
     
     def validate_params(self, params: dict) -> bool:
@@ -94,12 +103,13 @@ class FastApiHandler:
         else:
             print("Not all query params exist")
             return False
-                
+        
         if self.check_required_model_params(params["model_params"]):
             print("All model params exist")
         else:
             print("Not all model params exist")
             return False
+        
         return True
         
     def handle(self, params):
@@ -113,7 +123,7 @@ class FastApiHandler:
         """
         try:
             if not self.validate_params(params):
-                response = {"Error": "Problem with parameters"}
+                response = {"Error": "validate_params_errors", "details": self.err}
             else:
                 model_params = params["model_params"]
                 user_id = params["user_id"]
@@ -125,7 +135,7 @@ class FastApiHandler:
                     }
 
         except Exception as e:
-            print(f"Error while handling request: {e}")
+            return {"Error": f"Error while handling request: {e}", "details": self.err}
         else:
             return response
 
@@ -135,26 +145,26 @@ if __name__ == "__main__":
     test_params = {
         "user_id": "123",
         "model_params": {
-          'gender': 1.0,
-          'SeniorCitizen': 0.0,
-          'Partner': 0.0,
-          'Dependents': 0.0,
-          'Type': 0.5501916796819537,
-          'PaperlessBilling': 1.0,
-          'PaymentMethod': 0.2192247621752094,
-          'MonthlyCharges': 50.8,
-          'TotalCharges': 288.05,
-          'MultipleLines': 0.0,
-          'InternetService': 0.3437455629703251,
-          'OnlineSecurity': 0.0,
-          'OnlineBackup': 0.0,
-          'DeviceProtection': 0.0,
-          'TechSupport': 1.0,
-          'StreamingTV': 0.0,
-          'StreamingMovies': 0.0,
-          'days': 245.0,
-          'services': 2.0
-      }
+            "gender": 1,
+            "SeniorCitizen": 0,
+            "Partner": 0,
+            "Dependents": 0,
+            "Type": 0.5501916796819537,
+            "PaperlessBilling": 1,
+            "PaymentMethod": 0.2192247621752094,
+            "MonthlyCharges": 50.8,
+            "TotalCharges": 288.05,
+            "MultipleLines": 0,
+            "InternetService": 0.3437455629703251,
+            "OnlineSecurity": 0,
+            "OnlineBackup": 0,
+            "DeviceProtection": 0,
+            "TechSupport": 1,
+            "StreamingTV": 0,
+            "StreamingMovies": 0,
+            "days": 245,
+            "services": 2
+        }
     }
 
     # создаём обработчик запросов для API
